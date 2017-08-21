@@ -1,4 +1,6 @@
-import $ from 'jquery'
+import Data from './dom/data'
+import EventHandler from './dom/eventHandler'
+import SelectorEngine from './dom/selectorEngine'
 
 /**
  * --------------------------------------------------------------------------
@@ -7,7 +9,7 @@ import $ from 'jquery'
  * --------------------------------------------------------------------------
  */
 
-const Button = (($) => {
+const Button = (() => {
   /**
    * ------------------------------------------------------------------------
    * Constants
@@ -19,7 +21,6 @@ const Button = (($) => {
   const DATA_KEY            = 'bs.button'
   const EVENT_KEY           = `.${DATA_KEY}`
   const DATA_API_KEY        = '.data-api'
-  const JQUERY_NO_CONFLICT  = $.fn[NAME]
 
   const ClassName = {
     ACTIVE : 'active',
@@ -37,8 +38,8 @@ const Button = (($) => {
 
   const Event = {
     CLICK_DATA_API      : `click${EVENT_KEY}${DATA_API_KEY}`,
-    FOCUS_BLUR_DATA_API : `focus${EVENT_KEY}${DATA_API_KEY} ` +
-                            `blur${EVENT_KEY}${DATA_API_KEY}`
+    FOCUS_DATA_API      : `focus${EVENT_KEY}${DATA_API_KEY}`,
+    BLUR_DATA_API       : `blur${EVENT_KEY}${DATA_API_KEY}`
   }
 
   /**
@@ -63,23 +64,25 @@ const Button = (($) => {
     toggle() {
       let triggerChangeEvent = true
       let addAriaPressed = true
-      const rootElement = $(this._element).closest(
+
+      const rootElement = SelectorEngine.closest(
+        this._element,
         Selector.DATA_TOGGLE
-      )[0]
+      )
 
       if (rootElement) {
-        const input = $(this._element).find(Selector.INPUT)[0]
+        const input = SelectorEngine.findOne(Selector.INPUT, this._element)
 
         if (input) {
           if (input.type === 'radio') {
             if (input.checked &&
-              $(this._element).hasClass(ClassName.ACTIVE)) {
+              this._element.classList.contains(ClassName.ACTIVE)) {
               triggerChangeEvent = false
             } else {
-              const activeElement = $(rootElement).find(Selector.ACTIVE)[0]
+              const activeElement = SelectorEngine.findOne(Selector.ACTIVE, rootElement)
 
               if (activeElement) {
-                $(activeElement).removeClass(ClassName.ACTIVE)
+                activeElement.classList.remove(ClassName.ACTIVE)
               }
             }
           }
@@ -91,8 +94,8 @@ const Button = (($) => {
               rootElement.classList.contains('disabled')) {
               return
             }
-            input.checked = !$(this._element).hasClass(ClassName.ACTIVE)
-            $(input).trigger('change')
+            input.checked = !this._element.classList.contains(ClassName.ACTIVE)
+            EventHandler.trigger(input, 'change')
           }
 
           input.focus()
@@ -102,16 +105,16 @@ const Button = (($) => {
 
       if (addAriaPressed) {
         this._element.setAttribute('aria-pressed',
-          !$(this._element).hasClass(ClassName.ACTIVE))
+          !this._element.classList.contains(ClassName.ACTIVE))
       }
 
       if (triggerChangeEvent) {
-        $(this._element).toggleClass(ClassName.ACTIVE)
+        this._element.classList.toggle(ClassName.ACTIVE)
       }
     }
 
     dispose() {
-      $.removeData(this._element, DATA_KEY)
+      Data.removeData(this._element, DATA_KEY)
       this._element = null
     }
 
@@ -119,11 +122,11 @@ const Button = (($) => {
 
     static _jQueryInterface(config) {
       return this.each(function () {
-        let data = $(this).data(DATA_KEY)
+        let data = Data.getData(this, DATA_KEY)
 
         if (!data) {
           data = new Button(this)
-          $(this).data(DATA_KEY, data)
+          Data.setData(this, DATA_KEY, data)
         }
 
         if (config === 'toggle') {
@@ -139,37 +142,56 @@ const Button = (($) => {
    * ------------------------------------------------------------------------
    */
 
-  $(document)
-    .on(Event.CLICK_DATA_API, Selector.DATA_TOGGLE_CARROT, (event) => {
+  EventHandler.on(document,
+    Event.CLICK_DATA_API,
+    Selector.DATA_TOGGLE_CARROT, (event) => {
       event.preventDefault()
 
       let button = event.target
-
-      if (!$(button).hasClass(ClassName.BUTTON)) {
-        button = $(button).closest(Selector.BUTTON)
+      if (!button.classList.contains(ClassName.BUTTON)) {
+        button = SelectorEngine.closest(button, Selector.BUTTON)
       }
 
-      Button._jQueryInterface.call($(button), 'toggle')
+      let data = Data.getData(button, DATA_KEY)
+      if (!data) {
+        data = new Button(button)
+        Data.setData(button, DATA_KEY, data)
+      }
+      data.toggle()
     })
-    .on(Event.FOCUS_BLUR_DATA_API, Selector.DATA_TOGGLE_CARROT, (event) => {
-      const button = $(event.target).closest(Selector.BUTTON)[0]
-      $(button).toggleClass(ClassName.FOCUS, /^focus(in)?$/.test(event.type))
+
+  EventHandler.on(document,
+    Event.FOCUS_DATA_API, Selector.DATA_TOGGLE_CARROT, (event) => {
+      const button = SelectorEngine.closest(event.target, Selector.BUTTON)
+      button.classList.add(ClassName.FOCUS)
+    })
+
+  EventHandler.on(document,
+    Event.BLUR_DATA_API, Selector.DATA_TOGGLE_CARROT, (event) => {
+      const button = SelectorEngine.closest(event.target, Selector.BUTTON)
+      button.classList.remove(ClassName.FOCUS)
     })
 
   /**
    * ------------------------------------------------------------------------
    * jQuery
    * ------------------------------------------------------------------------
+   * add .button to jQuery only if jQuery is present
    */
+  if (typeof window.$ !== 'undefined' || typeof window.jQuery !== 'undefined') {
+    const $                   = window.$ || window.jQuery
+    const JQUERY_NO_CONFLICT  = $.fn[NAME]
+    $.fn[NAME]                = Button._jQueryInterface
+    $.fn[NAME].Constructor    = Button
 
-  $.fn[NAME] = Button._jQueryInterface
-  $.fn[NAME].Constructor = Button
-  $.fn[NAME].noConflict = function () {
-    $.fn[NAME] = JQUERY_NO_CONFLICT
-    return Button._jQueryInterface
+    $.fn[NAME].noConflict  = function () {
+      $.fn[NAME] = JQUERY_NO_CONFLICT
+      return Button._jQueryInterface
+    }
   }
 
   return Button
-})($)
+
+})()
 
 export default Button
